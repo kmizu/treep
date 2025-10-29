@@ -1,0 +1,3 @@
+def main() returns: Unit {
+  return 0
+}

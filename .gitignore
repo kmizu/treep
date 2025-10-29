@@ -1,0 +1,10 @@
+target/
+project/target/
+.bsp/
+.bloop/
+.metals/
+.idea/
+out/
+node_modules/
+.env
+.DS_Store
