@@ -1,0 +1,16 @@
+def g() returns: Int {
+  let s = 0
+  for (x in: [4, 5]) {
+    println("for_in_syntax saw:")
+    println(x)
+    s = s + x
+  }
+  return s
+}
+
+def main() returns: Int {
+  let total = g()
+  println("for_in_syntax total:")
+  println(total)
+  return total
+}

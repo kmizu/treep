@@ -1,0 +1,39 @@
+const xs = [1, 2, 3]
+const m  = { "a": 1, "b": 2 }
+
+def demo() returns: Int {
+  println("standard_methods list xs:")
+  println(xs)
+  println("standard_methods dict m:")
+  println(m)
+  let s = 0
+  let len = xs.length()
+  println("xs.length():")
+  println(len)
+  s = s + len
+  let head = xs.head()
+  println("xs.head():")
+  println(head)
+  s = s + head
+  let tailLen = xs.tail().length()
+  println("xs.tail().length():")
+  println(tailLen)
+  s = s + tailLen
+  let dictSize = m.size()
+  println("m.size():")
+  println(dictSize)
+  s = s + dictSize
+  println("m.entries():")
+  for (p in: m.entries()) {
+    println(p)
+    s = s + snd(p)
+  }
+  return s
+}
+
+def main() returns: Int {
+  let total = demo()
+  println("standard_methods total:")
+  println(total)
+  return total
+}

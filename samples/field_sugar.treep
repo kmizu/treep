@@ -1,0 +1,12 @@
+const p = { "x": 7, "y": 8 }
+
+def h() returns: Int { return p.x }
+
+def main() returns: Int {
+  println("field_sugar record:")
+  println(p)
+  let value = h()
+  println("field_sugar p.x:")
+  println(value)
+  return value
+}

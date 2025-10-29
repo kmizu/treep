@@ -1,0 +1,12 @@
+def build() returns: Int {
+  let acc = []
+  for (i in: [1, 2, 3]) { acc = acc.push(i) }
+  return acc[2]
+}
+
+def main() returns: Int {
+  let result = build()
+  println("assign_push result:")
+  println(result)
+  return result
+}

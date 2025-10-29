@@ -1,0 +1,18 @@
+const m = { "a": 1, "b": 2 }
+
+def sumDict() returns: Int {
+  let s = 0
+  for (p in: m) {
+    println("dict_iter pair:")
+    println(p)
+    s = s + snd(p)
+  }
+  return s
+}
+
+def main() returns: Int {
+  let total = sumDict()
+  println("dict_iter sum:")
+  println(total)
+  return total
+}

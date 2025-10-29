@@ -1,0 +1,18 @@
+const xs = [1, 2, 3]
+
+def sumList() returns: Int {
+  let s = 0
+  for (x in: xs) {
+    println("sum_list saw:")
+    println(x)
+    s = s + x
+  }
+  return s
+}
+
+def main() returns: Int {
+  let total = sumList()
+  println("sum_list total:")
+  println(total)
+  return total
+}

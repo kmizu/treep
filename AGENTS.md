@@ -12,11 +12,12 @@
 ## Build, Test, and Development Commands
 - Build: `sbt compile`
 - Run CLI:
-  - `sbt 'cli/run new'` – サンプル `samples/hello.treep` を生成
-  - `sbt 'cli/run build'` – `*.treep` を解析→マクロ展開まで検証（生成物なし）
-  - `sbt 'cli/run run'` – 素朴インタプリタで実行
+  - `sbt "run new"` – サンプル `samples/hello.treep` を生成
+  - `sbt "run build"` – `*.treep` を解析→マクロ展開まで検証（生成物なし）
+  - `sbt "run run"` – 素朴インタプリタで実行
 - Format/Lint: 現状なし（Scala 側は標準オプションのみ）。
-- Test: `sbt test`（テストは未配線、golden テスト方針は `modules/tests/README.md` を参照）
+- Test: `sbt test`（MUnit）。
+- 必須チェック: 変更を加えたら毎回 `sbt compile` → `sbt test` を実行し、ビルドとテストが通ることを確認すること。
 
 ## Coding Style & Naming Conventions
 - Indentation: 2 spaces (JS/TS, JSON, YAML), 4 spaces (Python).

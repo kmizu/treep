@@ -1,0 +1,8 @@
+def inc(x: Int) returns: Int { return x + 1 }
+
+def main() returns: Int {
+  let result = 1.inc()
+  println("ext_methods result:")
+  println(result)
+  return result
+}

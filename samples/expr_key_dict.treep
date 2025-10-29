@@ -1,0 +1,13 @@
+const a = "p"
+const m = { (a + "1"): 1, ("p" + "2"): 2 }
+
+def get() returns: Int { return m["p2"] }
+
+def main() returns: Int {
+  println("expr_key_dict map:")
+  println(m)
+  let value = get()
+  println("expr_key_dict lookup:")
+  println(value)
+  return value
+}

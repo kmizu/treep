@@ -1,3 +1,4 @@
-def main() returns: Unit {
+def main() returns: Int {
+  println("hello from treep!")
   return 0
 }
