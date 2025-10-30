@@ -1,17 +1,19 @@
 package com.github.kmizu.treep.types
 
 import com.github.kmizu.treep.east.*
+import com.github.kmizu.treep.east.ParamParser
 import com.github.kmizu.treep.types.Type as T
+import java.util.concurrent.atomic.AtomicInteger
 
 object HM:
   final case class Result(subst: Subst, ty: T)
 
-  private var nextId: Int = 1000
-  private def fresh(): T = { val id = nextId; nextId += 1; T.TVar(id) }
-  private var nextRowId: Int = 500000
-  private def freshRowId(): Int = { val id = nextRowId; nextRowId += 1; id }
+  private val nextId = new AtomicInteger(1000)
+  private def fresh(): T = T.TVar(nextId.incrementAndGet())
+  private val nextRowId = new AtomicInteger(500000)
+  private def freshRowId(): Int = nextRowId.incrementAndGet()
 
-  private def inst(s: Scheme): T = Infer.instantiate(s, () => { val id = nextId; nextId += 1; id })
+  private def inst(s: Scheme): T = Infer.instantiate(s, () => nextId.incrementAndGet())
 
   def builtinEnv: Env =
     def scheme(t: T): Scheme = Scheme(Set.empty, t)
@@ -88,7 +90,12 @@ object HM:
       "snd" -> poly(2) { vars =>
         val List(a, b) = vars
         T.TFun(List(T.TTuple2(a, b)), b)
-      }
+      },
+      // Math functions
+      "abs" -> scheme(T.TFun(List(T.TInt), T.TInt)),
+      "min" -> scheme(T.TFun(List(T.TInt, T.TInt), T.TInt)),
+      "max" -> scheme(T.TFun(List(T.TInt, T.TInt), T.TInt)),
+      "pow" -> scheme(T.TFun(List(T.TInt, T.TInt), T.TInt))
     )
     Env(ops)
 
@@ -96,14 +103,14 @@ object HM:
     case "int"    => Right(Result(Subst.empty, T.TInt))
     case "bool"   => Right(Result(Subst.empty, T.TBool))
     case "string" => Right(Result(Subst.empty, T.TString))
-    case "var"    => env.lookup(e.name.get).map(inst).toRight(TypeError.Mismatch(T.TVar(-1), T.TVar(-2))).map(t => Result(Subst.empty, t))
+    case "var"    => e.name.flatMap(env.lookup).map(inst).toRight(TypeError.Mismatch(T.TVar(-1), T.TVar(-2))).map(t => Result(Subst.empty, t))
     case "dict"   =>
       // unify keys and values across pairs; accept both children-based and attr-based key forms
       def kvOf(pair: Element): Option[(Element, Element)] =
         if pair.children.length >= 2 then Some((pair.children.head, pair.children(1)))
         else
-          pair.attrs.find(_.key == "key").map { a =>
-            val k = Element("string", attrs = List(Attr("value", a.value)))
+          pair.getAttr("key").map { keyValue =>
+            val k = Element("string", attrs = List(Attr("value", keyValue)))
             val v = pair.children.headOption.getOrElse(Element("unit"))
             (k, v)
           }
@@ -122,8 +129,8 @@ object HM:
       }
       res.map { case (s, kOpt, vOpt) => Result(s, T.TDict(kOpt.getOrElse(fresh()), vOpt.getOrElse(fresh()))) }
     case "index"  =>
-      val tE = e.children.find(_.kind=="target").flatMap(_.children.headOption).get
-      val kE = e.children.find(_.kind=="key").flatMap(_.children.headOption).get
+      val tE = e.getChild("target").getOrElse(Element("unit"))
+      val kE = e.getChild("key").getOrElse(Element("unit"))
       for
         Result(s1, tT) <- inferExpr(env, tE)
         Result(s2, tK) <- inferExpr(s1.applyTo(env), kE)
@@ -136,8 +143,8 @@ object HM:
         }
       yield Result(res.compose(s2).compose(s1), res.apply(tv))
     case "field" =>
-      val tgt = e.children.head
-      val key = e.attrs.find(_.key=="name").map(_.value).getOrElse("")
+      val tgt = e.children.headOption.getOrElse(Element("unit"))
+      val key = e.getAttrOrElse("name", "")
       for
         Result(s1, tT) <- inferExpr(env, tgt)
         tv = fresh()
@@ -150,16 +157,11 @@ object HM:
       yield out
     case "lambda" =>
       val body = e.children.headOption.getOrElse(Element("block"))
-      val paramsAttr = e.attrs.find(_.key=="params").map(_.value)
+      val paramsAttr = e.getAttr("params")
       paramsAttr match
         case Some(sv) =>
-          val pairs = sv.split(",").toList.filter(_.nonEmpty).map(_.trim)
-          val namesAndTypes: List[(String, T)] = pairs.flatMap { p =>
-            val idx = p.indexOf(":")
-            if idx <= 0 then Nil else
-              val n = p.substring(0, idx).trim
-              val tStr = p.substring(idx+1).trim
-              parseTypeStr(tStr).map(tt => n -> tt).toList
+          val namesAndTypes: List[(String, T)] = ParamParser.parseParams(sv).flatMap { case (n, tStr) =>
+            parseTypeStr(tStr).map(tt => n -> tt)
           }
           val retVar = fresh()
           var env1 = env
@@ -171,8 +173,8 @@ object HM:
               Right(Result(s2, T.TFun(namesAndTypes.map(nt => s2.apply(nt._2)), s2.apply(retVar))))
         case None =>
           // backward-compat single param form
-          val pName = e.attrs.find(_.key=="param").map(_.value).getOrElse("_")
-          val pTypeStr = e.attrs.find(_.key=="ptype").map(_.value)
+          val pName = e.getAttrOrElse("param", "_")
+          val pTypeStr = e.getAttr("ptype")
           val pType = pTypeStr.flatMap(parseTypeStr).getOrElse(fresh())
           val retVar = fresh()
           val env1 = env.extend(pName, Scheme(Set.empty, pType))
@@ -192,7 +194,7 @@ object HM:
       }
       res.map { case (s, tOpt) => Result(s, T.TList(tOpt.getOrElse(fresh()))) }
     case "call" =>
-      val name = e.name.get
+      val name = e.name.getOrElse("?")
       // Specialize certain builtins (e.g., iter) to report errors on unsupported types
       if name == "iter" then
         e.children.headOption match
@@ -223,8 +225,8 @@ object HM:
           }
         }
     case "mcall" =>
-      val name = e.name.get
-      val recvE = e.children.head
+      val name = e.name.getOrElse("?")
+      val recvE = e.children.headOption.getOrElse(Element("unit"))
       val argsE = e.children.tail
       for
         Result(sR, tR) <- inferExpr(env, recvE)
@@ -255,7 +257,9 @@ object HM:
             yield Result(sArg, T.TList(sArg.apply(a)))
           case "length" =>
             val a = fresh()
-            for sL <- Infer.unify(sA.apply(tR), T.TList(a)) yield Result(sL, T.TInt)
+            val tryList = Infer.unify(sA.apply(tR), T.TList(a)).map(s => Result(s, T.TInt))
+            val tryString = Infer.unify(sA.apply(tR), T.TString).map(s => Result(s, T.TInt))
+            tryList.orElse(tryString)
           case "head" =>
             val a = fresh()
             for sL <- Infer.unify(sA.apply(tR), T.TList(a)) yield Result(sL, sL.apply(a))
@@ -314,6 +318,22 @@ object HM:
             val a = fresh(); for sI <- Infer.unify(sA.apply(tR), T.TIter(a)) yield Result(sI, sI.apply(a))
           case "toList" =>
             val a = fresh(); for sI <- Infer.unify(sA.apply(tR), T.TIter(a)) yield Result(sI, T.TList(sI.apply(a)))
+          case "split" =>
+            for sS <- Infer.unify(sA.apply(tR), T.TString); sD <- if tArgs.nonEmpty then Infer.unify(sS.apply(tArgs.head), T.TString) else Right(sS)
+            yield Result(sD, T.TList(T.TString))
+          case "substring" =>
+            for
+              sS <- Infer.unify(sA.apply(tR), T.TString)
+              s1 <- if tArgs.nonEmpty then Infer.unify(sS.apply(tArgs.head), T.TInt) else Right(sS)
+              s2 <- if tArgs.lengthCompare(1) > 0 then Infer.unify(s1.apply(tArgs(1)), T.TInt) else Right(s1)
+            yield Result(s2, T.TString)
+          case "contains" =>
+            for sS <- Infer.unify(sA.apply(tR), T.TString); sD <- if tArgs.nonEmpty then Infer.unify(sS.apply(tArgs.head), T.TString) else Right(sS)
+            yield Result(sD, T.TBool)
+          case "join" =>
+            val a = fresh()
+            for sL <- Infer.unify(sA.apply(tR), T.TList(a)); sD <- if tArgs.nonEmpty then Infer.unify(sL.apply(tArgs.head), T.TString) else Right(sL)
+            yield Result(sD, T.TString)
           case _ =>
             // Try record-style method: recv has field `name` of type (args) -> beta
             val beta = fresh()

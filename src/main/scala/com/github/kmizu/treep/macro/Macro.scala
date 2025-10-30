@@ -1,12 +1,12 @@
 package com.github.kmizu.treep.`macro`
 
 import com.github.kmizu.treep.east.*
+import java.util.concurrent.atomic.AtomicLong
 
 object Macro:
-  private var counter: Long = 0L
+  private val counter = new AtomicLong(0L)
   private def gensym(prefix: String = "__it"): String =
-    counter += 1
-    s"${prefix}$$${counter}"
+    s"${prefix}$$${counter.incrementAndGet()}"
 
   def expand(tree: Element): Element =
     def loop(el: Element): Element = el.kind match
