@@ -38,6 +38,16 @@ object Normalize:
         children = fields.map { case (n, t) => Element("field", name = Some(n), attrs = List(Attr("type", renderType(t)))) },
         span = sp.map(s => SourceSpan(s.file, s.line, s.col))
       )
+    case C.ExtensionDecl(receiverParam, receiverType, methods, sp) =>
+      Element(
+        kind = "extension",
+        attrs = List(
+          Attr("receiver-param", receiverParam),
+          Attr("receiver-type", renderType(receiverType))
+        ),
+        children = methods.map { m => normTop(m) },
+        span = sp.map(s => SourceSpan(s.file, s.line, s.col))
+      )
 
   private def normBlock(b: C.Block): Element =
     Element("block", children = b.stmts.map(normStmt))

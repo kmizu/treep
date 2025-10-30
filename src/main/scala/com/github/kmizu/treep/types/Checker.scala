@@ -285,6 +285,40 @@ object Checker:
                   else Scheme(Set.empty, applied)
                 hmEnv = hmEnv.extend(cname, scheme)
           }
+        case "extension" =>
+          val receiverParam = ch.getAttr("receiver-param").getOrElse("self")
+          val receiverTypeStr = ch.getAttr("receiver-type").getOrElse("?")
+          parseType(receiverTypeStr) match
+            case Some(receiverType) =>
+              ch.children.foreach { methodDef =>
+                if methodDef.kind == "def" then
+                  val methodName = methodDef.name.getOrElse("?")
+                  val retT: T = methodDef.getAttr("returns").flatMap(parseType).getOrElse(T.TUnit)
+                  val params: List[(String,T)] =
+                    methodDef.getAttr("params").filter(_.nonEmpty)
+                      .map(pStr => ParamParser.parseParams(pStr).flatMap { case (n, tStr) =>
+                        parseType(tStr).map(t => n -> t)
+                      }).getOrElse(Nil)
+
+                  // Create a function type: (receiverType, params...) -> retT
+                  val fullParams = receiverType :: params.map(_._2)
+                  val funcType = T.TFun(fullParams, retT)
+
+                  // Extract type variables from receiver type for polymorphism
+                  val typeVars = Types.ftv(receiverType)
+                  val paramScheme = Scheme(typeVars, funcType)
+
+                  val extMethod = ExtensionMethod(methodName, receiverParam, receiverType, paramScheme, retT)
+                  hmEnv = hmEnv.addExtension(extMethod)
+
+                  // Also type-check the method body
+                  var methodEnv = hmEnv.extend(receiverParam, Scheme(Set.empty, receiverType))
+                  params.foreach { case (n,t) => methodEnv = methodEnv.extend(n, Scheme(Set.empty, t)) }
+                  val body = methodDef.children.headOption.getOrElse(Element("block"))
+                  walkBlockHM(methodEnv, body, retT, methodName)
+              }
+            case None =>
+              addDiag(s"invalid receiver type: ${receiverTypeStr}", List("extension"))
         case _ => ()
     }
 

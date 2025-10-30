@@ -21,17 +21,24 @@ object Interpreter:
   final case class VTuple2(a: Value, b: Value) extends Value
   final case class VFunc(params: List[String], body: Element, env: Env) extends Value
 
-  final case class Env(scopes: List[mutable.Map[String, Value]]):
-    def push(): Env = Env(mutable.Map.empty[String, Value] :: scopes)
-    def pop(): Env = Env(scopes.tail)
+  final case class RuntimeExtension(
+    methodName: String,
+    receiverParam: String,
+    func: VFunc
+  )
+
+  final case class Env(scopes: List[mutable.Map[String, Value]], extensions: List[RuntimeExtension] = Nil):
+    def push(): Env = Env(mutable.Map.empty[String, Value] :: scopes, extensions)
+    def pop(): Env = Env(scopes.tail, extensions)
     def set(name: String, v: Value): Unit = scopes.head.update(name, v)
     def get(name: String): Option[Value] = scopes.collectFirst(Function.unlift(_.get(name)))
     def assign(name: String, v: Value): Unit =
       val target = scopes.reverse.find(_.contains(name)).getOrElse(scopes.head)
       target.update(name, v)
+    def addExtension(ext: RuntimeExtension): Env = Env(scopes, extensions :+ ext)
 
   object Env:
-    def empty: Env = Env(List(mutable.Map.empty[String, Value]))
+    def empty: Env = Env(List(mutable.Map.empty[String, Value]), Nil)
 
   final case class Return(v: Value) extends Throwable
 
@@ -85,6 +92,21 @@ object Interpreter:
         env.set(cname, v)
       case "module" => el.children.foreach(evalTop)
       case "struct" => () // ignore for now
+      case "extension" =>
+        val receiverParam = el.getAttr("receiver-param").getOrElse("self")
+        el.children.foreach { methodDef =>
+          if methodDef.kind == "def" then
+            val methodName = methodDef.name.getOrElse(throw MissingAttribute("name", "extension method"))
+            val params: List[String] =
+              methodDef.getAttr("params").filter(_.nonEmpty)
+                .map(ParamParser.parseParamNames).getOrElse(Nil)
+            val body = methodDef.children.headOption.getOrElse(Element("block"))
+            // Create a function that takes receiver as first parameter
+            val fullParams = receiverParam :: params
+            val func = VFunc(fullParams, body, env)
+            val extMethod = RuntimeExtension(methodName, receiverParam, func)
+            env = env.addExtension(extMethod)
+        }
       case other => ()
     program.children.foreach(evalTop)
     env
@@ -92,7 +114,7 @@ object Interpreter:
   private def callFunc(fn: VFunc, args: List[Value]): Value =
     if fn.params.length != args.length then
       throw ArityMismatch(fn.params.length, args.length)
-    var callEnv = Env(mutable.Map.from(fn.env.scopes.head) :: fn.env.scopes.tail) // shallow copy head
+    var callEnv = Env(mutable.Map.from(fn.env.scopes.head) :: fn.env.scopes.tail, fn.env.extensions) // shallow copy head, preserve extensions
     callEnv = callEnv.push()
     fn.params.zip(args).foreach { case (n, v) => callEnv.set(n, v) }
     try
@@ -246,25 +268,30 @@ object Interpreter:
         case ("next", it: VIter, Nil) => it.next()
         case ("toList", it: VIter, Nil) => VList(it.remaining)
         case _ =>
-          // Record-style method: field function under string key
-          recv match
-            case VDict(m) =>
-              m.get(VString(name)) match
-                case Some(fn: VFunc) =>
-                  val arity = fn.params.length
-                  if arity == args.length + 1 then callFunc(fn, recv :: args)
-                  else if arity == args.length then callFunc(fn, args)
-                  else throw ArityMismatch(arity, args.length, Some(s"method $name"))
+          // Try extensions first
+          env.extensions.find(_.methodName == name) match
+            case Some(ext) =>
+              callFunc(ext.func, recv :: args)
+            case None =>
+              // Record-style method: field function under string key
+              recv match
+                case VDict(m) =>
+                  m.get(VString(name)) match
+                    case Some(fn: VFunc) =>
+                      val arity = fn.params.length
+                      if arity == args.length + 1 then callFunc(fn, recv :: args)
+                      else if arity == args.length then callFunc(fn, args)
+                      else throw ArityMismatch(arity, args.length, Some(s"method $name"))
+                    case _ =>
+                      // Fallback: treat as function(name) with (recv :: args)
+                      env.get(name) match
+                        case Some(fn: VFunc) => callFunc(fn, recv :: args)
+                        case _ => throw InvalidOperation(s"method call $name", "method not found")
                 case _ =>
-                  // Fallback: treat as function(name) with (recv :: args)
+              // Fallback: treat as function(name) with (recv :: args)
                   env.get(name) match
                     case Some(fn: VFunc) => callFunc(fn, recv :: args)
                     case _ => throw InvalidOperation(s"method call $name", "method not found")
-            case _ =>
-          // Fallback: treat as function(name) with (recv :: args)
-              env.get(name) match
-                case Some(fn: VFunc) => callFunc(fn, recv :: args)
-                case _ => throw InvalidOperation(s"method call $name", "method not found")
     case "lambda" =>
       val body = e.children.headOption.getOrElse(Element("block"))
       val params = e.getAttr("params")

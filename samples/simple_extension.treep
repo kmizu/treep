@@ -1,0 +1,12 @@
+extension (self: String) {
+  def twice() returns: String {
+    return self + self
+  }
+}
+
+def main() returns: Int {
+  let s = "Hi"
+  let result = s.twice()
+  println(result)
+  return 0
+}

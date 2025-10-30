@@ -1,0 +1,51 @@
+// Extension methods demo for treep
+
+// String extension: add a twice() method
+extension (self: String) {
+  def twice() returns: String {
+    return self + self
+  }
+}
+
+// List extension: add a double() method that doubles all elements
+extension (self: List[Int]) {
+  def double() returns: List[Int] {
+    let result = []
+    for (x in: self) {
+      result = result.push(x * 2)
+    }
+    return result
+  }
+}
+
+// List extension: add a sum() method
+extension (self: List[Int]) {
+  def sum() returns: Int {
+    let total = 0
+    for (x in: self) {
+      total = total + x
+    }
+    return total
+  }
+}
+
+def main() returns: Int {
+  // Test String extension
+  let greeting = "Hello"
+  let doubled = greeting.twice()
+  println(doubled)  // Should print "HelloHello"
+
+  // Test List extensions
+  let numbers = [1, 2, 3, 4, 5]
+  let doubled_nums = numbers.double()
+  println(doubled_nums)  // Should print [2, 4, 6, 8, 10]
+
+  let total = numbers.sum()
+  println(total)  // Should print 15
+
+  // Test method chaining
+  let result = [10, 20, 30].double().sum()
+  println(result)  // Should print 120 (20+40+60)
+
+  return 0
+}

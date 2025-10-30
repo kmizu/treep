@@ -13,6 +13,14 @@ enum Type:
 
 final case class Scheme(vars: Set[Int], body: Type)
 
+final case class ExtensionMethod(
+  methodName: String,
+  receiverParam: String,
+  receiverType: Type,
+  paramScheme: Scheme,      // Polymorphic parameter types
+  returnType: Type
+)
+
 final case class Subst(map: Map[Int, Type]):
   def apply(t: Type): Type = t match
     case Type.TVar(id) => map.getOrElse(id, t)
@@ -31,13 +39,14 @@ final case class Subst(map: Map[Int, Type]):
 object Subst:
   val empty: Subst = Subst(Map.empty)
 
-final case class Env(table: Map[String, Scheme]):
+final case class Env(table: Map[String, Scheme], extensions: List[ExtensionMethod] = Nil):
   def lookup(x: String): Option[Scheme] = table.get(x)
-  def extend(x: String, s: Scheme): Env = Env(table + (x -> s))
+  def extend(x: String, s: Scheme): Env = Env(table + (x -> s), extensions)
+  def addExtension(ext: ExtensionMethod): Env = Env(table, extensions :+ ext)
   def ftv: Set[Int] = table.values.flatMap(Types.ftv).toSet
 
 object Env:
-  val empty: Env = Env(Map.empty)
+  val empty: Env = Env(Map.empty, Nil)
 
 // Free type variables of a Type
 object Types:

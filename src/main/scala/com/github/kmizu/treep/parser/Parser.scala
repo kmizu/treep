@@ -44,7 +44,7 @@ object Parser:
       throw e
 
     private def synchronizeTop(): Unit =
-      val sync = Set("DEF", "CONST", "MODULE", "EOF")
+      val sync = Set("DEF", "CONST", "MODULE", "EXTENSION", "EOF")
       while !sync.contains(cur.kind) do i += 1
 
     private def synchronizeStmt(): Unit =
@@ -56,10 +56,11 @@ object Parser:
       while !at("EOF") do
         try
           cur.kind match
-            case "DEF"    => tops += funDef()
-            case "CONST"  => tops += constDecl()
-            case "MODULE" => tops += moduleDecl()
-            case "STRUCT" => tops += structDef()
+            case "DEF"       => tops += funDef()
+            case "CONST"     => tops += constDecl()
+            case "MODULE"    => tops += moduleDecl()
+            case "STRUCT"    => tops += structDef()
+            case "EXTENSION" => tops += extensionDecl()
             case other     =>
               report(s"unexpected token at top-level: ${other}")
               synchronizeTop()
@@ -107,6 +108,28 @@ object Parser:
         while at(",") do { next(); fields += fieldDecl() }
       eat("}")
       C.StructDef(name, fields.toList, span = Some(C.Span(fileName, tok.line, tok.col)))
+
+    private def extensionDecl(): TopDecl =
+      val tok = eat("EXTENSION")
+      eat("(")
+      val receiverParam = ident()
+      eat(":")
+      val receiverType = typeAnnot()
+      eat(")")
+      eat("{")
+      val methods = scala.collection.mutable.ListBuffer.empty[FunDef]
+      while !at("}") do
+        try
+          if at("DEF") then
+            funDef() match
+              case f: FunDef => methods += f
+              case other => error(s"expected FunDef, got ${other}")
+          else error(s"expected def in extension block, found ${cur.kind}")
+        catch
+          case _: ParseException =>
+            synchronizeStmt()
+      eat("}")
+      ExtensionDecl(receiverParam, receiverType, methods.toList, span = Some(C.Span(fileName, tok.line, tok.col)))
 
     private def fieldDecl(): (String, TypeAnnot) =
       val n = ident(); eat(":"); (n, typeAnnot())

@@ -335,19 +335,46 @@ object HM:
             for sL <- Infer.unify(sA.apply(tR), T.TList(a)); sD <- if tArgs.nonEmpty then Infer.unify(sL.apply(tArgs.head), T.TString) else Right(sL)
             yield Result(sD, T.TString)
           case _ =>
-            // Try record-style method: recv has field `name` of type (args) -> beta
-            val beta = fresh()
-            val tryRecord = Infer.unify(sA.apply(tR), T.TRecord(Map(name -> T.TFun(tArgs, beta)), Some(freshRowId()))).map { sRec =>
-              Result(sRec.compose(sA), sRec.apply(beta))
+            // Try extensions first
+            val tryExtension: Option[Either[TypeError, Result]] = env.extensions.find(_.methodName == name).map { ext =>
+              // Instantiate the extension's polymorphic scheme
+              val extFuncType = inst(ext.paramScheme)
+              // The function type is (receiverType, params...) -> returnType
+              extFuncType match
+                case T.TFun(recvType :: paramTypes, retType) =>
+                  // Unify receiver type
+                  for
+                    sRecv <- Infer.unify(sA.apply(tR), sA.apply(recvType))
+                    // Unify argument types
+                    sArgs <- if paramTypes.length == tArgs.length then
+                      val init: Either[TypeError, Subst] = Right(sRecv)
+                      paramTypes.zip(tArgs).foldLeft(init) { case (accE, (pType, aType)) =>
+                        for
+                          acc <- accE
+                          s <- Infer.unify(acc.apply(pType), acc.apply(aType))
+                        yield s.compose(acc)
+                      }
+                    else
+                      Left(TypeError.Mismatch(T.TVar(-1), T.TVar(-2)))
+                  yield Result(sArgs.compose(sRecv).compose(sA), sArgs.apply(retType))
+                case _ => Left(TypeError.Mismatch(T.TVar(-1), T.TVar(-2)))
             }
-            tryRecord.orElse {
-              val init: Either[TypeError, (Subst, List[T])] = Right((sA, tR :: tArgs))
-              for
-                (sAll, allArgs) <- init
-                fT <- env.lookup(name).map(inst).toRight(TypeError.Mismatch(T.TVar(-1), T.TVar(-2)))
-                beta = fresh()
-                sFn <- Infer.unify(sAll.apply(fT), T.TFun(allArgs.map(sAll.apply), beta))
-            yield Result(sFn.compose(sAll), sFn.apply(beta))
+
+            tryExtension.getOrElse {
+              // Try record-style method: recv has field `name` of type (args) -> beta
+              val beta = fresh()
+              val tryRecord = Infer.unify(sA.apply(tR), T.TRecord(Map(name -> T.TFun(tArgs, beta)), Some(freshRowId()))).map { sRec =>
+                Result(sRec.compose(sA), sRec.apply(beta))
+              }
+              tryRecord.orElse {
+                val init: Either[TypeError, (Subst, List[T])] = Right((sA, tR :: tArgs))
+                for
+                  (sAll, allArgs) <- init
+                  fT <- env.lookup(name).map(inst).toRight(TypeError.Mismatch(T.TVar(-1), T.TVar(-2)))
+                  beta = fresh()
+                  sFn <- Infer.unify(sAll.apply(fT), T.TFun(allArgs.map(sAll.apply), beta))
+              yield Result(sFn.compose(sAll), sFn.apply(beta))
+              }
             }
       yield out
     case other => Right(Result(Subst.empty, fresh()))
@@ -355,7 +382,7 @@ object HM:
   extension (s: Subst) def applyTo(env: Env): Env =
     Env(env.table.view.mapValues { sch =>
       sch.copy(body = s.apply(sch.body))
-    }.toMap)
+    }.toMap, env.extensions)
 
   private def parseTypeStr(s: String): Option[T] =
     def trim(s: String) = s.trim
