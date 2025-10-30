@@ -3,19 +3,19 @@ package com.github.kmizu.treep.types
 import munit.FunSuite
 import com.github.kmizu.treep.parser.Parser
 import com.github.kmizu.treep.east.Normalize
-import com.github.kmizu.treep.`macro`.Macro
+import com.github.kmizu.treep.`macro`.MacroExpander
 
 class CheckerSpec extends FunSuite {
   test("well-typed add passes") {
     val src = "def add(x: Int, y: Int) returns: Int { return x + y }"
-    val east = Macro.expand(Normalize.toEAST(Parser.parseProgram(src)))
+    val east = MacroExpander.expand(Normalize.toEAST(Parser.parseProgram(src)))
     val diags = Checker.check(east)
     assertEquals(diags.isEmpty, true)
   }
 
   test("return type mismatch is reported") {
     val src = "def f() returns: Int { return \"x\" }"
-    val east = Macro.expand(Normalize.toEAST(Parser.parseProgram(src)))
+    val east = MacroExpander.expand(Normalize.toEAST(Parser.parseProgram(src)))
     val diags = Checker.check(east)
     assert(diags.nonEmpty)
   }
@@ -29,7 +29,7 @@ class CheckerSpec extends FunSuite {
 
   test("arity mismatch is reported") {
     val src = "def add(x: Int, y: Int) returns: Int { return x + y } def g() returns: Int { return add(1) }"
-    val east = Macro.expand(Normalize.toEAST(Parser.parseProgram(src)))
+    val east = MacroExpander.expand(Normalize.toEAST(Parser.parseProgram(src)))
     val diags = Checker.check(east)
     assert(diags.nonEmpty)
   }

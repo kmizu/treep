@@ -7,7 +7,7 @@ import scala.util.Using
 import scala.collection.mutable
 
 import com.github.kmizu.treep.parser.Parser
-import com.github.kmizu.treep.`macro`.Macro
+import com.github.kmizu.treep.`macro`.MacroExpander
 import com.github.kmizu.treep.interpreter.Interpreter
 import com.github.kmizu.treep.east.{Normalize, Element}
 import com.github.kmizu.treep.types.Checker
@@ -150,7 +150,7 @@ def main() returns: Int {
     val src = Files.readString(path)
     val cst = Parser.parseProgram(src, path.toString)
     val east = Normalize.toEAST(cst)
-    val expanded = Macro.expand(east)
+    val expanded = MacroExpander.expand(east)
     Analysis(path, expanded, Parser.lastErrors, Checker.check(expanded))
 
   private def relativePath(path: Path): String =

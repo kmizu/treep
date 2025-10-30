@@ -15,7 +15,7 @@ class MacroSpec extends FunSuite {
   test("for-in expands to block(let it; while(hasNext(it)) { let x = next(it); ... })") {
     val src = "def f() returns: Int { for (x in: [1,2]) { return x } }"
     val east0 = Normalize.toEAST(Parser.parseProgram(src))
-    val east = Macro.expand(east0)
+    val east = MacroExpander.expand(east0)
     val blocks = find(east, "block")
     assert(blocks.nonEmpty)
     val lets = find(east, "let")

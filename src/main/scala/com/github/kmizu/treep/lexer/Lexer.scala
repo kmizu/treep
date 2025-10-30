@@ -5,7 +5,8 @@ final case class Token(kind: String, lexeme: String, line: Int, col: Int)
 object Lexer:
   private val keywords = Set(
     "def","const","let","return","if","else","while","for","match","case",
-    "struct","module","import","in","returns","true","false","extension"
+    "struct","module","import","in","returns","true","false","extension","macro",
+    "pattern","expand"
   )
 
   def tokenize(input: String, file: String = "<stdin>"): List[Token] =

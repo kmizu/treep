@@ -1,0 +1,36 @@
+// User-defined macro example: unless
+// Demonstrates the type-safe macro system
+
+// Define the unless macro
+// Pattern: unless(condition) { body }
+// Expansion: if (!condition) { body }
+macro unless {
+  pattern: unless($cond) { $body }
+  expand: {
+    if (!$cond) {
+      $body
+    }
+  }
+}
+
+// Test function using the unless macro
+def test() returns: Unit {
+  let x = 5
+
+  // Using the unless macro
+  unless(x > 10) {
+    println("x is not greater than 10")
+  }
+
+  // Another example
+  unless(x == 0) {
+    println("x is not zero")
+  }
+}
+
+// Main entry point
+def main() returns: Unit {
+  println("=== Unless Macro Demo ===")
+  test()
+  println("=== Done ===")
+}

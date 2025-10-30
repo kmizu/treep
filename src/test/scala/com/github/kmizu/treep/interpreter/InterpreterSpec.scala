@@ -4,7 +4,7 @@ import munit.FunSuite
 import com.github.kmizu.treep.parser.Parser
 import com.github.kmizu.treep.east.Normalize
 import com.github.kmizu.treep.interpreter.Interpreter.*
-import com.github.kmizu.treep.`macro`.Macro
+import com.github.kmizu.treep.`macro`.MacroExpander
 
 class InterpreterSpec extends FunSuite {
 
@@ -14,7 +14,7 @@ class InterpreterSpec extends FunSuite {
 
   test("for-in early return yields first element") {
     val src = "def f() returns: Int { for (x in: [1,2]) { return x } return 0 }"
-    val east = Macro.expand(Normalize.toEAST(Parser.parseProgram(src)))
+    val east = MacroExpander.expand(Normalize.toEAST(Parser.parseProgram(src)))
     val res = Interpreter.evalFunction(east, "f")
     assertEquals(valueOfInt(res), 1)
   }
@@ -28,7 +28,7 @@ class InterpreterSpec extends FunSuite {
       |  return acc[2]
       |}
       |""".stripMargin
-    val east = Macro.expand(Normalize.toEAST(Parser.parseProgram(src)))
+    val east = MacroExpander.expand(Normalize.toEAST(Parser.parseProgram(src)))
     val res = Interpreter.evalFunction(east, "h")
     assertEquals(valueOfInt(res), 3)
   }
@@ -40,7 +40,7 @@ class InterpreterSpec extends FunSuite {
       |  if (1 + 2 * 3 > 0) { return 42 } else { return 0 }
       |}
       |""".stripMargin
-    val east = Macro.expand(Normalize.toEAST(Parser.parseProgram(src)))
+    val east = MacroExpander.expand(Normalize.toEAST(Parser.parseProgram(src)))
     val res = Interpreter.evalFunction(east, "g")
     assertEquals(valueOfInt(res), 42)
   }
@@ -51,7 +51,7 @@ class InterpreterSpec extends FunSuite {
       |const m = { "a": 7 }
       |def h() returns: Int { return m["a"] }
       |""".stripMargin
-    val east = Macro.expand(Normalize.toEAST(Parser.parseProgram(src)))
+    val east = MacroExpander.expand(Normalize.toEAST(Parser.parseProgram(src)))
     val res = Interpreter.evalFunction(east, "h")
     assertEquals(valueOfInt(res), 7)
   }
@@ -62,7 +62,7 @@ class InterpreterSpec extends FunSuite {
       |def s1() returns: Int { if (false && unknown()) { return 0 } else { return 7 } }
       |def s2() returns: Int { if (true || unknown()) { return 9 } else { return 0 } }
       |""".stripMargin
-    val east = Macro.expand(Normalize.toEAST(Parser.parseProgram(src)))
+    val east = MacroExpander.expand(Normalize.toEAST(Parser.parseProgram(src)))
     val r1 = Interpreter.evalFunction(east, "s1")
     val r2 = Interpreter.evalFunction(east, "s2")
     assertEquals(valueOfInt(r1), 7)
@@ -79,7 +79,7 @@ class InterpreterSpec extends FunSuite {
       |  return s
       |}
       |""".stripMargin
-    val east = Macro.expand(Normalize.toEAST(Parser.parseProgram(src)))
+    val east = MacroExpander.expand(Normalize.toEAST(Parser.parseProgram(src)))
     val rk = Interpreter.evalFunction(east, "sumk")
     assertEquals(valueOfInt(rk), 3)
   }
@@ -94,7 +94,7 @@ class InterpreterSpec extends FunSuite {
       |  return s
       |}
       |""".stripMargin
-    val east = Macro.expand(Normalize.toEAST(Parser.parseProgram(src)))
+    val east = MacroExpander.expand(Normalize.toEAST(Parser.parseProgram(src)))
     val rv = Interpreter.evalFunction(east, "sumv")
     assertEquals(valueOfInt(rv), 3)
   }
@@ -104,7 +104,7 @@ class InterpreterSpec extends FunSuite {
       """
       |def m(n: Int) returns: Int { match (n) { case 0 => { return 1 } case _ => { return n } } }
       |""".stripMargin
-    val east = Macro.expand(Normalize.toEAST(Parser.parseProgram(src)))
+    val east = MacroExpander.expand(Normalize.toEAST(Parser.parseProgram(src)))
     val r0 = Interpreter.evalFunction(east, "m", Nil :+ VInt(0))
     val r3 = Interpreter.evalFunction(east, "m", Nil :+ VInt(3))
     assertEquals(valueOfInt(r0), 1)

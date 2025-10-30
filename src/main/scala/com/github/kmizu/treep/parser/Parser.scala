@@ -44,7 +44,7 @@ object Parser:
       throw e
 
     private def synchronizeTop(): Unit =
-      val sync = Set("DEF", "CONST", "MODULE", "EXTENSION", "EOF")
+      val sync = Set("DEF", "CONST", "MODULE", "EXTENSION", "MACRO", "EOF")
       while !sync.contains(cur.kind) do i += 1
 
     private def synchronizeStmt(): Unit =
@@ -61,6 +61,7 @@ object Parser:
             case "MODULE"    => tops += moduleDecl()
             case "STRUCT"    => tops += structDef()
             case "EXTENSION" => tops += extensionDecl()
+            case "MACRO"     => tops += macroDef()
             case other     =>
               report(s"unexpected token at top-level: ${other}")
               synchronizeTop()
@@ -130,6 +131,33 @@ object Parser:
             synchronizeStmt()
       eat("}")
       ExtensionDecl(receiverParam, receiverType, methods.toList, span = Some(C.Span(fileName, tok.line, tok.col)))
+
+    private def macroDef(): TopDecl =
+      val tok = eat("MACRO")
+      val name = ident()
+      eat("{")
+
+      // Parse pattern: <pattern text>
+      eat("PATTERN")
+      eat(":")
+      val patternStart = i
+      var patternText = ""
+      // Collect tokens until we see "expand" or "}"
+      while !at("EXPAND") && !at("}") && !at("EOF") do
+        patternText += cur.lexeme
+        if !at("EXPAND") && !at("}") then patternText += " "
+        next()
+      patternText = patternText.trim
+
+      // Parse expand: <block>
+      var expansionBlock = Block(Nil)
+      if at("EXPAND") then
+        eat("EXPAND")
+        eat(":")
+        expansionBlock = block()
+
+      eat("}")
+      MacroDef(name, patternText, expansionBlock, span = Some(C.Span(fileName, tok.line, tok.col)))
 
     private def fieldDecl(): (String, TypeAnnot) =
       val n = ident(); eat(":"); (n, typeAnnot())

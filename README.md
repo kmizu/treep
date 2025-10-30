@@ -11,6 +11,7 @@ treep は、表層構文 → EAST 正規化 → マクロ展開 → HM 型推論
 - [CLI コマンド](#cli-コマンド)
 - [言語ハイライト](#言語ハイライト)
 - [最初のプログラム](#最初のプログラム)
+- [ユーザー定義マクロ](#ユーザー定義マクロ)
 - [標準ライブラリ早見表](#標準ライブラリ早見表)
 - [プロジェクト構成](#プロジェクト構成)
 - [開発・テストの進め方](#開発テストの進め方)
@@ -67,8 +68,11 @@ treep は、表層構文 → EAST 正規化 → マクロ展開 → HM 型推論
 ---
 
 ## 言語ハイライト
-- **衛生的マクロ**  
-  `for (x in: xs)` のような糖衣構文を EAST 上で `while` + イテレータへ展開し、変数捕捉を避けるよう gensym (`__it$N`) を採用。
+- **衛生的マクロ（組み込み＆ユーザー定義）**
+  - 組み込みマクロ: `for (x in: xs)` のような糖衣構文を EAST 上で `while` + イテレータへ展開。
+  - ユーザー定義マクロ: `macro name { pattern: ..., expand: { ... } }` 構文でカスタムマクロを定義可能。
+  - 変数捕捉を避けるため gensym (`__tmp$N`) を採用し、衛生的な展開を保証。
+  - EAST 形式を活用した型安全なパターンマッチング＆変数置換。
 - **Hindley–Milner 型推論**  
   Algorithm W をベースに `List[A]`, `Dict[K, V]`, `Iter[T]`, タプル、関数型をサポート。拡張メソッドも型推論に統合。
 - **Row 多相レコード**  
@@ -122,6 +126,58 @@ def main() returns: Int { return sumDict() }
 
 ---
 
+## ユーザー定義マクロ
+treep では、EAST 形式を活用した型安全なマクロシステムを提供しています。`macro` キーワードを使って、カスタムマクロを定義できます。
+
+### マクロの定義
+```treep
+macro unless {
+  pattern: unless($cond) { $body }
+  expand: {
+    if (!$cond) {
+      $body
+    }
+  }
+}
+```
+
+### マクロの使用
+```treep
+def test() returns: Unit {
+  let x = 5
+
+  // unless マクロを使用
+  unless(x > 10) {
+    println("x is not greater than 10")
+  }
+
+  unless(x == 0) {
+    println("x is not zero")
+  }
+}
+
+def main() returns: Unit {
+  test()
+}
+```
+
+実行例: `sbt "run run samples/unless.treep"`
+
+```
+=== Unless Macro Demo ===
+x is not greater than 10
+x is not zero
+=== Done ===
+```
+
+### マクロの仕組み
+- **パターンマッチング**: `$変数名` でパターン変数を宣言し、呼び出し時の引数をキャプチャ。
+- **展開テンプレート**: `expand:` ブロック内で `$変数名` を参照すると、キャプチャした引数に置き換わります。
+- **衛生的展開**: マクロ展開時に gensym を使用し、変数捕捉を回避。
+- **型安全**: EAST 形式で展開されるため、型検査器が最終的な型の整合性を検証。
+
+---
+
 ## 標準ライブラリ早見表
 
 ### コレクション
@@ -145,8 +201,8 @@ def main() returns: Int { return sumDict() }
 │  └─ main/scala/com/github/kmizu/treep/
 │       ├─ lexer/           # トークナイザ
 │       ├─ parser/          # CST と Pratt/LL パーサ
-│       ├─ east/            # EAST 定義と正規化
-│       ├─ macro/           # マクロ展開
+│       ├─ east/            # EAST 定義と正規化、ビルダー API
+│       ├─ macro/           # マクロ展開 (MacroExpander, MacroRegistry, MacroPattern)
 │       ├─ types/           # Type/Scheme/Subst/Unify/HM/Checker
 │       ├─ interpreter/     # インタプリタ
 │       └─ cli/             # `treep new|build|run|fmt|test`

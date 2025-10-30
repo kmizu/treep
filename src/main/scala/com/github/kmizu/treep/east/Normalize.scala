@@ -48,6 +48,14 @@ object Normalize:
         children = methods.map { m => normTop(m) },
         span = sp.map(s => SourceSpan(s.file, s.line, s.col))
       )
+    case C.MacroDef(name, pattern, expansion, sp) =>
+      Element(
+        kind = "macro",
+        name = Some(name),
+        attrs = List(Attr("pattern", pattern)),
+        children = List(normBlock(expansion)),
+        span = sp.map(s => SourceSpan(s.file, s.line, s.col))
+      )
 
   private def normBlock(b: C.Block): Element =
     Element("block", children = b.stmts.map(normStmt))
